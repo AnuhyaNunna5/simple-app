@@ -4,22 +4,23 @@ import com.example.employee.entity.Employee;
 import com.example.employee.entity.Skill;
 import com.example.employee.entity.Wing;
 import com.example.employee.entity.Department;
+import com.example.employee.entity.WorkExperience;
 import com.example.employee.repositories.EmployeeRepository;
 import com.example.employee.repositories.SkillRepository;
 import com.example.employee.repositories.WingRepository;
 import com.example.employee.repositories.DepartmentRepository;
+import com.example.employee.repositories.WorkExperienceRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestPart;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import java.util.Base64;
+import java.util.stream.Collectors;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
@@ -33,6 +34,8 @@ public class EmployeeController {
     private WingRepository wingRepository;
     @Autowired
     private DepartmentRepository departmentRepository;
+    @Autowired
+    private WorkExperienceRepository workExperienceRepository;
 
     @PostMapping("/employees")
     public ResponseEntity<String> createEmployee(
@@ -45,6 +48,7 @@ public class EmployeeController {
         employee.setDoj(LocalDate.parse(employeeDTO.getDoj()));
         employee.setGender(employeeDTO.getGender());
         employee.setAddress(employeeDTO.getAddress());
+        employee.setAge(employeeDTO.getAge());
 
         // Set photo
         if (photo != null && !photo.isEmpty()) {
@@ -57,8 +61,11 @@ public class EmployeeController {
         employee.setWing(wing);
 
         // Set department
-        Department department = departmentRepository.findById(employeeDTO.getDepartmentId())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid department ID"));
+        Department department = null;
+        if (employeeDTO.getDepartmentId() != null) {
+            department = departmentRepository.findById(employeeDTO.getDepartmentId())
+                    .orElseThrow(() -> new IllegalArgumentException("Invalid department ID"));
+        }
         employee.setDepartment(department);
 
         // Set skills
@@ -68,11 +75,169 @@ public class EmployeeController {
         }
         employee.setSkills(skills);
 
-        employeeRepository.save(employee);
+        // Initialize workExperiences
+        employee.setWorkExperiences(new ArrayList<>());
+
+        // Save employee first
+        Employee savedEmployee = employeeRepository.save(employee);
+
+        // Set work experiences
+        if (employeeDTO.getWorkExperiences() != null && !employeeDTO.getWorkExperiences().isEmpty()) {
+            for (WorkExperienceDTO expDTO : employeeDTO.getWorkExperiences()) {
+                // Skip if all fields are empty or null
+                if (expDTO.getLocation() == null && expDTO.getCompanyName() == null &&
+                    expDTO.getJobRole() == null && expDTO.getFromDate() == null &&
+                    expDTO.getToDate() == null) {
+                    continue;
+                }
+                WorkExperience experience = new WorkExperience();
+                experience.setLocation(expDTO.getLocation());
+                experience.setCompanyName(expDTO.getCompanyName());
+                experience.setJobRole(expDTO.getJobRole());
+                experience.setFromDate(expDTO.getFromDate() != null && !expDTO.getFromDate().isEmpty() ? LocalDate.parse(expDTO.getFromDate()) : null);
+                experience.setToDate(expDTO.getToDate() != null && !expDTO.getToDate().isEmpty() ? LocalDate.parse(expDTO.getToDate()) : null);
+                experience.setExperienceYears(expDTO.getExperienceYears());
+                experience.setEmployee(savedEmployee);
+                workExperienceRepository.save(experience);
+            }
+        }
+
         return ResponseEntity.ok("Employee created successfully");
     }
-}
 
+    @GetMapping("/employees")
+    public ResponseEntity<List<EmployeeDTO>> getAllEmployees() {
+        List<Employee> employees = employeeRepository.findAll();
+        List<EmployeeDTO> employeeDTOs = employees.stream().map(employee -> {
+            EmployeeDTO dto = new EmployeeDTO();
+            dto.setId(employee.getId());
+            dto.setName(employee.getName());
+            dto.setSonOf(employee.getSonOf());
+            dto.setGender(employee.getGender());
+            dto.setDoj(employee.getDoj().toString());
+            return dto;
+        }).collect(Collectors.toList());
+        return ResponseEntity.ok(employeeDTOs);
+    }
+    
+    @GetMapping("/employees/{id}")
+    public ResponseEntity<EmployeeDTO> getEmployeeById(@PathVariable Long id) {
+        Employee employee = employeeRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Employee not found"));
+        EmployeeDTO dto = new EmployeeDTO();
+        dto.setId(employee.getId());
+        dto.setName(employee.getName());
+        dto.setSonOf(employee.getSonOf());
+        dto.setDob(employee.getDob().toString());
+        dto.setAge(employee.getAge());
+        dto.setDoj(employee.getDoj().toString());
+        dto.setGender(employee.getGender());
+        dto.setAddress(employee.getAddress());
+        dto.setWingId(employee.getWing().getId());
+        dto.setWingName(employee.getWing().getName());
+        dto.setDepartmentId(employee.getDepartment() != null ? employee.getDepartment().getId() : null);
+        dto.setDepartmentName(employee.getDepartment() != null ? employee.getDepartment().getName() : null);
+        dto.setSkillIds(employee.getSkills().stream().map(Skill::getId).collect(Collectors.toList()));
+        dto.setSkillNames(employee.getSkills().stream().map(Skill::getName).collect(Collectors.joining(", ")));
+        if (employee.getPhoto() != null) {
+        	dto.setPhotoBase64(Base64.getEncoder().encodeToString(employee.getPhoto()));
+        }
+        List<WorkExperienceDTO> workExperienceDTOs = employee.getWorkExperiences().stream().map(exp -> {
+            WorkExperienceDTO expDto = new WorkExperienceDTO();
+            expDto.setLocation(exp.getLocation());
+            expDto.setCompanyName(exp.getCompanyName());
+            expDto.setJobRole(exp.getJobRole());
+            expDto.setFromDate(exp.getFromDate() != null ? exp.getFromDate().toString() : null);
+            expDto.setToDate(exp.getToDate() != null ? exp.getToDate().toString() : null);
+            expDto.setExperienceYears(exp.getExperienceYears());
+            return expDto;
+        }).collect(Collectors.toList());
+        dto.setWorkExperiences(workExperienceDTOs);
+        return ResponseEntity.ok(dto);
+    }
+
+    @PutMapping("/employees/{id}")
+    public ResponseEntity<String> updateEmployee(
+            @PathVariable Long id,
+            @RequestPart("employee") EmployeeDTO employeeDTO,
+            @RequestPart(value = "photo", required = false) MultipartFile photo) throws IOException {
+        Employee employee = employeeRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Employee not found"));
+
+        // Update basic fields
+        employee.setName(employeeDTO.getName());
+        employee.setSonOf(employeeDTO.getSonOf());
+        employee.setDob(LocalDate.parse(employeeDTO.getDob()));
+        employee.setDoj(LocalDate.parse(employeeDTO.getDoj()));
+        employee.setGender(employeeDTO.getGender());
+        employee.setAddress(employeeDTO.getAddress());
+        employee.setAge(employeeDTO.getAge());
+
+        // Update photo
+        if (photo != null && !photo.isEmpty()) {
+            employee.setPhoto(photo.getBytes());
+        }
+
+        // Update wing
+        Wing wing = wingRepository.findById(employeeDTO.getWingId())
+                .orElseThrow(() -> new IllegalArgumentException("Invalid wing ID"));
+        employee.setWing(wing);
+
+        // Update department
+        Department department = null;
+        if (employeeDTO.getDepartmentId() != null) {
+            department = departmentRepository.findById(employeeDTO.getDepartmentId())
+                    .orElseThrow(() -> new IllegalArgumentException("Invalid department ID"));
+        }
+        employee.setDepartment(department);
+
+        // Update skills
+        List<Skill> skills = skillRepository.findAllById(employeeDTO.getSkillIds());
+        if (skills.size() != employeeDTO.getSkillIds().size()) {
+            throw new IllegalArgumentException("One or more skill IDs are invalid");
+        }
+        employee.setSkills(skills);
+
+        // Clear existing work experiences (cascade will remove them)
+        employee.getWorkExperiences().clear();
+
+        // Add new work experiences
+        if (employeeDTO.getWorkExperiences() != null && !employeeDTO.getWorkExperiences().isEmpty()) {
+            List<WorkExperience> newExperiences = new ArrayList<>();
+            for (WorkExperienceDTO expDTO : employeeDTO.getWorkExperiences()) {
+                if (expDTO.getLocation() == null && expDTO.getCompanyName() == null &&
+                    expDTO.getJobRole() == null && expDTO.getFromDate() == null &&
+                    expDTO.getToDate() == null) {
+                    continue;
+                }
+                WorkExperience experience = new WorkExperience();
+                experience.setLocation(expDTO.getLocation());
+                experience.setCompanyName(expDTO.getCompanyName());
+                experience.setJobRole(expDTO.getJobRole());
+                experience.setFromDate(expDTO.getFromDate() != null && !expDTO.getFromDate().isEmpty() ? LocalDate.parse(expDTO.getFromDate()) : null);
+                experience.setToDate(expDTO.getToDate() != null && !expDTO.getToDate().isEmpty() ? LocalDate.parse(expDTO.getToDate()) : null);
+                experience.setExperienceYears(expDTO.getExperienceYears());
+                experience.setEmployee(employee);
+                newExperiences.add(experience);
+            }
+            employee.setWorkExperiences(newExperiences);
+        }
+
+        // Save employee (cascade updates work experiences)
+        employeeRepository.save(employee);
+        return ResponseEntity.ok("Employee updated successfully");
+    }
+
+    @DeleteMapping("/employees/{id}")
+    public ResponseEntity<String> deleteEmployee(@PathVariable Long id) {
+        Employee employee = employeeRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Employee not found"));
+
+        // Delete employee (cascade removes work experiences)
+        employeeRepository.delete(employee);
+        return ResponseEntity.ok("Employee deleted successfully");
+    }
+}
 
 class EmployeeDTO {
     private String name;
@@ -84,6 +249,13 @@ class EmployeeDTO {
     private Long wingId;
     private Long departmentId;
     private List<Long> skillIds;
+    private List<WorkExperienceDTO> workExperiences;
+    private Integer age;
+    private Long id;
+    private String wingName;
+    private String departmentName;
+    private String skillNames;
+    private String photoBase64;
 
     // Getters and setters
     public String getName() { return name; }
@@ -104,4 +276,19 @@ class EmployeeDTO {
     public void setDepartmentId(Long departmentId) { this.departmentId = departmentId; }
     public List<Long> getSkillIds() { return skillIds; }
     public void setSkillIds(List<Long> skillIds) { this.skillIds = skillIds; }
+    public List<WorkExperienceDTO> getWorkExperiences() { return workExperiences; }
+    public void setWorkExperiences(List<WorkExperienceDTO> workExperiences) { this.workExperiences = workExperiences; }
+    public Integer getAge() { return age; }
+    public void setAge(Integer age) { this.age = age; }
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getWingName() { return wingName; }
+    public void setWingName(String wingName) { this.wingName = wingName; }
+    public String getDepartmentName() { return departmentName; }
+    public void setDepartmentName(String departmentName) { this.departmentName = departmentName; }
+    public String getSkillNames() { return skillNames; }
+    public void setSkillNames(String skillNames) { this.skillNames = skillNames; }
+    public String getPhotoBase64() { return photoBase64; }
+    public void setPhotoBase64(String photoBase64) { this.photoBase64 = photoBase64; }
 }
+

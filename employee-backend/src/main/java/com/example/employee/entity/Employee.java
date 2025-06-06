@@ -1,6 +1,5 @@
 package com.example.employee.entity;
 
-
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.util.List;
@@ -18,18 +17,28 @@ public class Employee {
     private String gender;
     private String address;
     private byte[] photo;
-    @ManyToOne
-    private Wing wing;
-    @ManyToOne
-    private Department department;
-    @ManyToMany
     
+    @Column(name = "age", nullable = false, columnDefinition = "INTEGER DEFAULT 0")
+    private Integer age;
+
+    @ManyToOne
+    @JoinColumn(name = "wing_id", nullable = false)
+    private Wing wing;
+
+    @ManyToOne
+    @JoinColumn(name = "department_id", nullable = true)
+    private Department department;
+
+    @ManyToMany
     @JoinTable(
         name = "employee_skills",
         joinColumns = @JoinColumn(name = "employee_id"),
         inverseJoinColumns = @JoinColumn(name = "skill_id")
     )
     private List<Skill> skills;
+
+    @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<WorkExperience> workExperiences;
 
     // Getters and Setters
     public Long getId() { return id; }
@@ -54,4 +63,8 @@ public class Employee {
     public void setDepartment(Department department) { this.department = department; }
     public List<Skill> getSkills() { return skills; }
     public void setSkills(List<Skill> skills) { this.skills = skills; }
+    public List<WorkExperience> getWorkExperiences() { return workExperiences; }
+    public void setWorkExperiences(List<WorkExperience> workExperiences) { this.workExperiences = workExperiences; }
+    public Integer getAge() { return age; }
+    public void setAge(Integer age) { this.age = age; }
 }
