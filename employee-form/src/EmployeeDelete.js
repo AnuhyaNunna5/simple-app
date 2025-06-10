@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import Modal from 'react-modal';
-import './employeeForm.css'; 
+import './employeeForm.css';
 import './EmployeeDetails.css';
-
 
 // Bind modal to app root
 Modal.setAppElement('#root');
 
-const EmployeeDetails = () => {
+const EmployeeDelete = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [employee, setEmployee] = useState(null);
+  const [remarks, setRemarks] = useState('');
   const [error, setError] = useState('');
+  const [validationError, setValidationError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalImage, setModalImage] = useState('');
 
@@ -22,6 +24,47 @@ const EmployeeDetails = () => {
       .then((response) => setEmployee(response.data))
       .catch(() => setError('Failed to fetch employee details'));
   }, [id]);
+
+  const validateRemarks = (value) => {
+    if (!value || value.trim().length === 0) {
+      return 'Remarks are required';
+    }
+    if (value.length < 10) {
+      return 'Remarks must be at least 10 characters';
+    }
+    if (value.length > 500) {
+      return 'Remarks must not exceed 500 characters';
+    }
+    return '';
+  };
+
+  const handleRemarksChange = (e) => {
+    const value = e.target.value;
+    setRemarks(value);
+    setValidationError(validateRemarks(value));
+  };
+
+  const handleDelete = async () => {
+    const validation = validateRemarks(remarks);
+    if (validation) {
+      setValidationError(validation);
+      return;
+    }
+
+    try {
+      await axios.delete(`http://localhost:8080/api/employees/${id}`, {
+        data: { remarks },
+      });
+      alert('Employee deleted successfully');
+      navigate('/employees');
+    } catch (err) {
+      setError(
+        `Failed to delete employee: ${
+          err.response?.data || err.message
+        }`
+      );
+    }
+  };
 
   const openModal = (imageSrc) => {
     setModalImage(imageSrc);
@@ -34,11 +77,25 @@ const EmployeeDetails = () => {
   };
 
   if (error) {
-    return <div className="form-container"><p className="error">{error}</p></div>;
+    return (
+      <div className="form-container">
+        <Link to="/employees">
+          <button className="back-button">Back to List</button>
+        </Link>
+        <p className="error">{error}</p>
+      </div>
+    );
   }
 
   if (!employee) {
-    return <div className="form-container"><p>Loading...</p></div>;
+    return (
+      <div className="form-container">
+        <Link to="/employees">
+          <button className="back-button">Back to List</button>
+        </Link>
+        <p>Loading...</p>
+      </div>
+    );
   }
 
   return (
@@ -46,7 +103,8 @@ const EmployeeDetails = () => {
       <Link to="/employees">
         <button className="back-button">Back to List</button>
       </Link>
-      <h2>Employee Details</h2>
+      <h2>Delete Employee Confirmation</h2>
+      <p>Are you sure you want to delete the following employee?</p>
       <table className="employee-details-table">
         <tbody>
           <tr>
@@ -83,7 +141,7 @@ const EmployeeDetails = () => {
           </tr>
           <tr>
             <td>Department</td>
-            <td>{employee.departmentName}</td>
+            <td>{employee.departmentName || '-'}</td>
           </tr>
           <tr>
             <td>Skills</td>
@@ -138,7 +196,49 @@ const EmployeeDetails = () => {
         <p>No work experiences available.</p>
       )}
 
-      
+      <div className="form-group">
+        <label htmlFor="remarks">Remarks (required, 10-500 characters):</label>
+        <textarea
+          id="remarks"
+          value={remarks}
+          onChange={handleRemarksChange}
+          className={`form-control ${validationError ? 'error-border' : ''}`}
+          rows="4"
+          style={{
+            border: validationError ? '1px solid red' : '1px solid #ddd',
+            width: '100%',
+            padding: '10px',
+            marginBottom: '10px',
+          }}
+          placeholder="Enter reason for deletion (e.g., Employee left due to relocation)"
+        />
+        {validationError && <p className="error">{validationError}</p>}
+      </div>
+
+      <div style={{ marginTop: '20px' }}>
+        <button
+          className="delete-button"
+          onClick={handleDelete}
+          disabled={!!validationError}
+          style={{
+            backgroundColor: 'rgb(150, 50, 50)',
+            color: 'white',
+            padding: '10px',
+            marginRight: '10px',
+            border: validationError ? 'none' : '1px',
+            borderRadius: '4px',
+            cursor: validationError ? 'not-allowed' : 'pointer',
+            opacity: validationError ? 0.5 : 1,
+          }}
+        >
+          Confirm Delete
+        </button>
+        <Link to="/employees">
+          <button className="back-button">Cancel</button>
+        </Link>
+      </div>
+
+      {error && <p className="error">{error}</p>}
 
       <Modal
         isOpen={isModalOpen}
@@ -153,4 +253,4 @@ const EmployeeDetails = () => {
   );
 };
 
-export default EmployeeDetails;
+export default EmployeeDelete;

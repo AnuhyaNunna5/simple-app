@@ -46,10 +46,6 @@
   align-items: center;
 }
 
-/* .age-field {
-  width: 40px;
-} */
-
 .radio-group,
 .checkbox-group {
   display: flex;
@@ -94,12 +90,13 @@
   background-color: rgb(255, 0, 0);
 }
 
-.add-button{
-  background-color:  #318248;;
+.add-button {
+  background-color: #318248;
+  vertical-align: middle;
 }
 
 .add-button:hover {
-  background-color: #2a6b3c;;
+  background-color: #2a6b3c;
 }
 
 .photo-preview {
@@ -107,6 +104,11 @@
   max-height: 100px;
   margin-top: 10px;
   border-radius: 4px;
+  cursor: pointer; /* Indicate clickability */
+}
+
+.photo-preview:hover {
+  opacity: 0.8;
 }
 
 .error,
@@ -135,5 +137,55 @@ button[type="submit"],
 
 button[type="submit"]:hover,
 .list-button:hover {
+  background-color: #2a6b3c;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  position: relative;
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 80vw;
+  max-height: 80vh;
+  overflow: auto;
+}
+
+.modal-image {
+  max-width: 100%;
+  max-height: 70vh;
+  border-radius: 4px;
+}
+
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: #318248;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  text-align: center;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.modal-close:hover {
   background-color: #2a6b3c;
 }

@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
 import axios from 'axios';
+import Modal from 'react-modal';
 import './employeeForm.css';
+
+// Bind modal to app root for accessibility
+Modal.setAppElement('#root');
 
 const EmployeeForm = () => {
   const [formData, setFormData] = useState({
@@ -16,10 +20,11 @@ const EmployeeForm = () => {
     departmentId: '',
     address: '',
     photo: null,
-    workExperiences: [
-      { location: '', companyName: '', jobRole: '', fromDate: '', toDate: '', experienceYears: 0 },
-    ],
+    photoBase64: '',
+    workExperiences: [],
   });
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalImage, setModalImage] = useState('');
   const navigate = useNavigate();
   const { id } = useParams();
   const [skills, setSkills] = useState([]);
@@ -37,7 +42,7 @@ const EmployeeForm = () => {
     departmentId: '',
     address: '',
     photo: '',
-    workExperiences: [''],
+    workExperiences: [],
   });
 
   useEffect(() => {
@@ -67,10 +72,9 @@ const EmployeeForm = () => {
             wingId: employee.wingId || '',
             departmentId: employee.departmentId || '',
             address: employee.address || '',
-            photo: null, // Photo re-upload required
-            workExperiences: employee.workExperiences.length
-              ? employee.workExperiences
-              : [{ location: '', companyName: '', jobRole: '', fromDate: '', toDate: '', experienceYears: 0 }],
+            photo: null,
+            photoBase64: employee.photoBase64 || '',
+            workExperiences: employee.workExperiences || [],
           });
           setErrors({
             name: '',
@@ -83,7 +87,7 @@ const EmployeeForm = () => {
             departmentId: '',
             address: '',
             photo: '',
-            workExperiences: employee.workExperiences.map(() => '') || [''],
+            workExperiences: employee.workExperiences ? employee.workExperiences.map(() => '') : [],
           });
         })
         .catch(() => setError('Failed to fetch employee data'));
@@ -152,7 +156,6 @@ const EmployeeForm = () => {
         console.log('Work experience error: companyName length', exp.companyName);
         return 'Company Name must be 2–100 characters';
       }
-      // Check for overlapping work experiences
       if (exp.fromDate && exp.toDate) {
         const currentFrom = new Date(exp.fromDate);
         const currentTo = new Date(exp.toDate);
@@ -260,7 +263,7 @@ const EmployeeForm = () => {
 
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
-    setFormData((prev) => ({ ...prev, photo: file }));
+    setFormData((prev) => ({ ...prev, photo: file, photoBase64: '' }));
     setErrors((prev) => ({ ...prev, photo: validateField('photo', file) }));
   };
 
@@ -296,7 +299,10 @@ const EmployeeForm = () => {
           { location: '', companyName: '', jobRole: '', fromDate: '', toDate: '', experienceYears: 0 },
         ],
       }));
-      setErrors((prev) => ({ ...prev, workExperiences: [...prev.workExperiences, ''] }));
+      setErrors((prev) => ({
+        ...prev,
+        workExperiences: [...prev.workExperiences, ''],
+      }));
     }
   };
 
@@ -323,9 +329,9 @@ const EmployeeForm = () => {
       departmentId: validateField('departmentId', formData.departmentId),
       address: validateField('address', formData.address),
       photo: validateField('photo', formData.photo),
-      workExperiences: formData.workExperiences.map((_, index) =>
-        validateField('workExperience', null, index)
-      ),
+      workExperiences: formData.workExperiences.length
+        ? formData.workExperiences.map((_, index) => validateField('workExperience', null, index))
+        : [],
     };
     console.log('Form Validation Errors:', newErrors);
     setErrors(newErrors);
@@ -389,9 +395,8 @@ const EmployeeForm = () => {
         departmentId: '',
         address: '',
         photo: null,
-        workExperiences: [
-          { location: '', companyName: '', jobRole: '', fromDate: '', toDate: '', experienceYears: 0 },
-        ],
+        photoBase64: '',
+        workExperiences: [],
       });
       setDepartments([]);
       setErrors({
@@ -405,13 +410,23 @@ const EmployeeForm = () => {
         departmentId: '',
         address: '',
         photo: '',
-        workExperiences: [''],
+        workExperiences: [],
       });
       navigate('/employees');
     } catch (err) {
       console.error('Submission error:', err);
       setError(`Failed to submit form: ${err.response?.data?.message || err.message}`);
     }
+  };
+
+  const openModal = (imageSrc) => {
+    setModalImage(imageSrc);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setModalImage('');
   };
 
   return (
@@ -595,6 +610,24 @@ const EmployeeForm = () => {
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="photo">Photo:</label>
+            {formData.photoBase64 && !formData.photo && (
+              <span onClick={() => openModal(`data:image/jpeg;base64,${formData.photoBase64}`)}>
+                <img
+                  src={`data:image/jpeg;base64,${formData.photoBase64}`}
+                  alt="Existing Employee"
+                  className="photo-preview"
+                />
+              </span>
+            )}
+            {formData.photo && (
+              <span onClick={() => openModal(URL.createObjectURL(formData.photo))}>
+                <img
+                  src={URL.createObjectURL(formData.photo)}
+                  alt="Preview"
+                  className="photo-preview"
+                />
+              </span>
+            )}
             <input
               type="file"
               id="photo"
@@ -603,22 +636,22 @@ const EmployeeForm = () => {
               onChange={handlePhotoChange}
             />
             {errors.photo && <p className="error-inline">{errors.photo}</p>}
-            {formData.photo && (
-              <img
-                src={URL.createObjectURL(formData.photo)}
-                alt="Preview"
-                className="photo-preview"
-              />
-            )}
           </div>
         </div>
         <div className="form-row">
           <div className="form-group">
-            <label>Previous Work Experience:</label>
-          </div>
-        </div>
-        <div className="form-row">
-          <div className="form-group">
+            <label>
+              Previous Work Experience:
+              {formData.workExperiences.length < 5 && (
+                <span
+                  className="add-button"
+                  onClick={handleAddExperience}
+                  title="Add Experience"
+                >
+                  +
+                </span>
+              )}
+            </label>
             {formData.workExperiences.map((experience, index) => (
               <div key={index} className="experience-row">
                 <div className="experience-fields">
@@ -652,42 +685,43 @@ const EmployeeForm = () => {
                     value={experience.toDate}
                     onChange={(e) => handleExperienceChange(index, 'toDate', e.target.value)}
                   />
+                  <label htmlFor={`expS-${index}`}>Experience in Yrs:</label>
                   <input
                     type="text"
                     value={experience.experienceYears}
                     readOnly
+                    id={`exp-${index}`}
                     placeholder="Years"
                   />
-                  {index > 0 && (
-                    <span
-                      className="remove-button"
-                      onClick={() => handleRemoveExperience(index)}
-                      title="Remove"
-                    >
-                      ×
-                    </span>
-                  )}
+                  <span
+                    className="remove-button"
+                    onClick={() => handleRemoveExperience(index)}
+                    title="Remove"
+                  >
+                    ×
+                  </span>
                 </div>
                 {errors.workExperiences[index] && (
                   <p className="error-inline">{errors.workExperiences[index]}</p>
                 )}
               </div>
             ))}
-            {formData.workExperiences.length < 5 && (
-              <span
-                className="add-button"
-                onClick={handleAddExperience}
-                title="Add Experience"
-              >
-                +
-              </span>
-            )}
           </div>
         </div>
         <div className="button-group">
           <button type="submit">{id ? 'Update' : 'Submit'}</button>
         </div>
       </form>
+
+      <Modal
+        isOpen={isModalOpen}
+        onRequestClose={closeModal}
+        className="modal-content"
+        overlayClassName="modal-overlay"
+      >
+        <button onClick={closeModal} className="modal-close">×</button>
+        <img src={modalImage} alt="Full Size" className="modal-image" />
+      </Modal>
     </div>
   );
 };

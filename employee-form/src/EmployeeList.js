@@ -14,18 +14,6 @@ const EmployeeList = () => {
       .catch(() => setError('Failed to fetch employees'));
   }, []);
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this employee?')) {
-      try {
-        await axios.delete(`http://localhost:8080/api/employees/${id}`);
-        setEmployees(employees.filter((emp) => emp.id !== id));
-        alert('Employee deleted successfully');
-      } catch (err) {
-        setError(`Failed to delete employee: ${err.response?.data?.message || err.message}`);
-      }
-    }
-  };
-
   return (
     <div className="form-container">
       <h2>List of Employees</h2>
@@ -57,12 +45,9 @@ const EmployeeList = () => {
                 <Link to={`/employee-form/edit/${employee.id}`}>
                   <button className="edit-button">Edit</button>
                 </Link>
-                <button
-                  className="delete-button"
-                  onClick={() => handleDelete(employee.id)}
-                >
-                  Delete
-                </button>
+                <Link to={`/employees/delete/${employee.id}`}>
+                  <button className="delete-button">Delete</button>
+                </Link>
               </td>
             </tr>
           ))}

@@ -5,26 +5,37 @@ import com.example.employee.entity.Skill;
 import com.example.employee.entity.Wing;
 import com.example.employee.entity.Department;
 import com.example.employee.entity.WorkExperience;
+import com.example.employee.entity.LogEmployee;
+import com.example.employee.entity.LogEmployeeSkill;
+import com.example.employee.entity.LogWorkExperience;
 import com.example.employee.repositories.EmployeeRepository;
 import com.example.employee.repositories.SkillRepository;
 import com.example.employee.repositories.WingRepository;
 import com.example.employee.repositories.DepartmentRepository;
 import com.example.employee.repositories.WorkExperienceRepository;
+import com.example.employee.repositories.LogEmployeeRepository;
+import com.example.employee.repositories.LogEmployeeSkillRepository;
+import com.example.employee.repositories.LogWorkExperienceRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.Base64;
 import java.util.stream.Collectors;
-
 import java.io.IOException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api")
 public class EmployeeController {
+
+    private static final Logger logger = LoggerFactory.getLogger(EmployeeController.class);
 
     @Autowired
     private EmployeeRepository employeeRepository;
@@ -36,11 +47,18 @@ public class EmployeeController {
     private DepartmentRepository departmentRepository;
     @Autowired
     private WorkExperienceRepository workExperienceRepository;
+    @Autowired
+    private LogEmployeeRepository logEmployeeRepository;
+    @Autowired
+    private LogEmployeeSkillRepository logEmployeeSkillRepository;
+    @Autowired
+    private LogWorkExperienceRepository logWorkExperienceRepository;
 
     @PostMapping("/employees")
     public ResponseEntity<String> createEmployee(
             @RequestPart("employee") EmployeeDTO employeeDTO,
             @RequestPart(value = "photo", required = false) MultipartFile photo) throws IOException {
+        logger.info("Creating employee: {}", employeeDTO.getName());
         Employee employee = new Employee();
         employee.setName(employeeDTO.getName());
         employee.setSonOf(employeeDTO.getSonOf());
@@ -83,6 +101,7 @@ public class EmployeeController {
 
         // Set work experiences
         if (employeeDTO.getWorkExperiences() != null && !employeeDTO.getWorkExperiences().isEmpty()) {
+            logger.info("Processing {} work experiences", employeeDTO.getWorkExperiences().size());
             for (WorkExperienceDTO expDTO : employeeDTO.getWorkExperiences()) {
                 // Skip if all fields are empty or null
                 if (expDTO.getLocation() == null && expDTO.getCompanyName() == null &&
@@ -94,8 +113,13 @@ public class EmployeeController {
                 experience.setLocation(expDTO.getLocation());
                 experience.setCompanyName(expDTO.getCompanyName());
                 experience.setJobRole(expDTO.getJobRole());
-                experience.setFromDate(expDTO.getFromDate() != null && !expDTO.getFromDate().isEmpty() ? LocalDate.parse(expDTO.getFromDate()) : null);
-                experience.setToDate(expDTO.getToDate() != null && !expDTO.getToDate().isEmpty() ? LocalDate.parse(expDTO.getToDate()) : null);
+                try {
+                    experience.setFromDate(expDTO.getFromDate() != null && !expDTO.getFromDate().isEmpty() ? LocalDate.parse(expDTO.getFromDate()) : null);
+                    experience.setToDate(expDTO.getToDate() != null && !expDTO.getToDate().isEmpty() ? LocalDate.parse(expDTO.getToDate()) : null);
+                } catch (Exception e) {
+                    logger.error("Invalid date format in work experience: {}", expDTO, e);
+                    throw new IllegalArgumentException("Invalid date format in work experience");
+                }
                 experience.setExperienceYears(expDTO.getExperienceYears());
                 experience.setEmployee(savedEmployee);
                 workExperienceRepository.save(experience);
@@ -140,7 +164,7 @@ public class EmployeeController {
         dto.setSkillIds(employee.getSkills().stream().map(Skill::getId).collect(Collectors.toList()));
         dto.setSkillNames(employee.getSkills().stream().map(Skill::getName).collect(Collectors.joining(", ")));
         if (employee.getPhoto() != null) {
-        	dto.setPhotoBase64(Base64.getEncoder().encodeToString(employee.getPhoto()));
+            dto.setPhotoBase64(Base64.getEncoder().encodeToString(employee.getPhoto()));
         }
         List<WorkExperienceDTO> workExperienceDTOs = employee.getWorkExperiences().stream().map(exp -> {
             WorkExperienceDTO expDto = new WorkExperienceDTO();
@@ -161,14 +185,20 @@ public class EmployeeController {
             @PathVariable Long id,
             @RequestPart("employee") EmployeeDTO employeeDTO,
             @RequestPart(value = "photo", required = false) MultipartFile photo) throws IOException {
+        logger.info("Updating employee ID: {}, Work Experiences: {}", id, employeeDTO.getWorkExperiences());
         Employee employee = employeeRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Employee not found"));
 
         // Update basic fields
         employee.setName(employeeDTO.getName());
         employee.setSonOf(employeeDTO.getSonOf());
-        employee.setDob(LocalDate.parse(employeeDTO.getDob()));
-        employee.setDoj(LocalDate.parse(employeeDTO.getDoj()));
+        try {
+            employee.setDob(LocalDate.parse(employeeDTO.getDob()));
+            employee.setDoj(LocalDate.parse(employeeDTO.getDoj()));
+        } catch (Exception e) {
+            logger.error("Invalid date format in employeeDTO: {}", employeeDTO, e);
+            throw new IllegalArgumentException("Invalid date format in DOB or DOJ");
+        }
         employee.setGender(employeeDTO.getGender());
         employee.setAddress(employeeDTO.getAddress());
         employee.setAge(employeeDTO.getAge());
@@ -198,13 +228,12 @@ public class EmployeeController {
         }
         employee.setSkills(skills);
 
-        // Clear existing work experiences (cascade will remove them)
-        employee.getWorkExperiences().clear();
-
-        // Add new work experiences
+        // Update work experiences
+        List<WorkExperience> workExperiences = employee.getWorkExperiences();
+        workExperiences.clear(); // Clear existing experiences (triggers orphanRemoval)
         if (employeeDTO.getWorkExperiences() != null && !employeeDTO.getWorkExperiences().isEmpty()) {
-            List<WorkExperience> newExperiences = new ArrayList<>();
             for (WorkExperienceDTO expDTO : employeeDTO.getWorkExperiences()) {
+                // Skip empty experiences
                 if (expDTO.getLocation() == null && expDTO.getCompanyName() == null &&
                     expDTO.getJobRole() == null && expDTO.getFromDate() == null &&
                     expDTO.getToDate() == null) {
@@ -214,27 +243,89 @@ public class EmployeeController {
                 experience.setLocation(expDTO.getLocation());
                 experience.setCompanyName(expDTO.getCompanyName());
                 experience.setJobRole(expDTO.getJobRole());
-                experience.setFromDate(expDTO.getFromDate() != null && !expDTO.getFromDate().isEmpty() ? LocalDate.parse(expDTO.getFromDate()) : null);
-                experience.setToDate(expDTO.getToDate() != null && !expDTO.getToDate().isEmpty() ? LocalDate.parse(expDTO.getToDate()) : null);
+                try {
+                    experience.setFromDate(expDTO.getFromDate() != null && !expDTO.getFromDate().isEmpty() ? LocalDate.parse(expDTO.getFromDate()) : null);
+                    experience.setToDate(expDTO.getToDate() != null && !expDTO.getToDate().isEmpty() ? LocalDate.parse(expDTO.getToDate()) : null);
+                } catch (Exception e) {
+                    logger.error("Invalid date format in work experience: {}", expDTO, e);
+                    throw new IllegalArgumentException("Invalid date format in work experience");
+                }
                 experience.setExperienceYears(expDTO.getExperienceYears());
                 experience.setEmployee(employee);
-                newExperiences.add(experience);
+                workExperiences.add(experience);
             }
-            employee.setWorkExperiences(newExperiences);
         }
 
-        // Save employee (cascade updates work experiences)
-        employeeRepository.save(employee);
+        // Save employee (cascade persists work experiences)
+        try {
+            employeeRepository.save(employee);
+        } catch (Exception e) {
+            logger.error("Failed to save employee: {}", employee, e);
+            throw new RuntimeException("Failed to save employee", e);
+        }
+        logger.info("Employee updated successfully: ID {}", id);
         return ResponseEntity.ok("Employee updated successfully");
     }
 
     @DeleteMapping("/employees/{id}")
-    public ResponseEntity<String> deleteEmployee(@PathVariable Long id) {
+    @Transactional
+    public ResponseEntity<String> deleteEmployee(@PathVariable Long id, @RequestBody DeleteRequestDTO deleteRequest) {
+        logger.info("Deleting employee ID: {} with remarks: {}", id, deleteRequest.getRemarks());
+
+        // Validate remarks
+        String remarks = deleteRequest.getRemarks();
+        if (remarks == null || remarks.trim().isEmpty()) {
+            throw new IllegalArgumentException("Remarks are required");
+        }
+        if (remarks.length() < 10 || remarks.length() > 500) {
+            throw new IllegalArgumentException("Remarks must be between 10 and 500 characters");
+        }
+
+        // Fetch employee
         Employee employee = employeeRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Employee not found"));
 
-        // Delete employee (cascade removes work experiences)
+        // Log to log_employees
+        LogEmployee logEmployee = new LogEmployee();
+        logEmployee.setEmployeeId(employee.getId());
+        logEmployee.setName(employee.getName());
+        logEmployee.setSonOf(employee.getSonOf());
+        logEmployee.setDob(employee.getDob());
+        logEmployee.setAge(employee.getAge());
+        logEmployee.setDoj(employee.getDoj());
+        logEmployee.setGender(employee.getGender());
+        logEmployee.setAddress(employee.getAddress());
+        logEmployee.setWingId(employee.getWing().getId());
+        logEmployee.setDepartmentId(employee.getDepartment() != null ? employee.getDepartment().getId() : null);
+        logEmployee.setPhoto(employee.getPhoto());
+        logEmployee.setRemarks(remarks);
+        logEmployee.setLogTime(LocalDateTime.now());
+        logEmployeeRepository.save(logEmployee);
+
+        // Log to log_employee_skills
+        for (Skill skill : employee.getSkills()) {
+            LogEmployeeSkill logSkill = new LogEmployeeSkill();
+            logSkill.setEmployeeId(employee.getId());
+            logSkill.setSkillId(skill.getId());
+            logEmployeeSkillRepository.save(logSkill);
+        }
+
+        // Log to log_work_experience
+        for (WorkExperience exp : employee.getWorkExperiences()) {
+            LogWorkExperience logExp = new LogWorkExperience();
+            logExp.setEmployeeId(employee.getId());
+            logExp.setLocation(exp.getLocation());
+            logExp.setCompanyName(exp.getCompanyName());
+            logExp.setJobRole(exp.getJobRole());
+            logExp.setFromDate(exp.getFromDate());
+            logExp.setToDate(exp.getToDate());
+            logExp.setExperienceYears(exp.getExperienceYears());
+            logWorkExperienceRepository.save(logExp);
+        }
+
+        // Delete employee (cascade removes work experiences and skills)
         employeeRepository.delete(employee);
+        logger.info("Employee ID: {} deleted successfully", id);
         return ResponseEntity.ok("Employee deleted successfully");
     }
 }
@@ -291,4 +382,3 @@ class EmployeeDTO {
     public String getPhotoBase64() { return photoBase64; }
     public void setPhotoBase64(String photoBase64) { this.photoBase64 = photoBase64; }
 }
-
