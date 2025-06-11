@@ -18,7 +18,7 @@ public class WorkExperience {
     private Double experienceYears;
 
     @ManyToOne
-    @JoinColumn(name = "employee_id", nullable = false)
+    @JoinColumn(name = "emp_id", nullable = false)
     private Employee employee;
 
     // Getters and Setters

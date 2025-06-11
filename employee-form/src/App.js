@@ -11,10 +11,10 @@ function App() {
       <Routes>
         <Route path="/" element={<EmployeeForm />} />
         <Route path="/employee-form" element={<EmployeeForm />} />
-        <Route path="/employee-form/edit/:id" element={<EmployeeForm />} />
+        <Route path="/employee-form/edit/:empId" element={<EmployeeForm />} />
         <Route path="/employees" element={<EmployeeList />} />
-        <Route path="/employees/:id" element={<EmployeeDetails />} />
-        <Route path="/employees/delete/:id" element={<EmployeeDelete />} />
+        <Route path="/employees/:empId" element={<EmployeeDetails />} />
+        <Route path="/employees/delete/:empId" element={<EmployeeDelete />} />
       </Routes>
     </BrowserRouter>
   );

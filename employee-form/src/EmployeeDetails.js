@@ -10,7 +10,7 @@ import './EmployeeDetails.css';
 Modal.setAppElement('#root');
 
 const EmployeeDetails = () => {
-  const { id } = useParams();
+  const { empId } = useParams();
   const [employee, setEmployee] = useState(null);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -18,10 +18,10 @@ const EmployeeDetails = () => {
 
   useEffect(() => {
     axios
-      .get(`http://localhost:8080/api/employees/${id}`)
+      .get(`http://localhost:8080/api/employees/${empId}`)
       .then((response) => setEmployee(response.data))
       .catch(() => setError('Failed to fetch employee details'));
-  }, [id]);
+  }, [empId]);
 
   const openModal = (imageSrc) => {
     setModalImage(imageSrc);
@@ -137,8 +137,6 @@ const EmployeeDetails = () => {
       ) : (
         <p>No work experiences available.</p>
       )}
-
-      
 
       <Modal
         isOpen={isModalOpen}

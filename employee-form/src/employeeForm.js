@@ -26,7 +26,7 @@ const EmployeeForm = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalImage, setModalImage] = useState('');
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { empId } = useParams();
   const [skills, setSkills] = useState([]);
   const [wings, setWings] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -56,9 +56,9 @@ const EmployeeForm = () => {
       .then((response) => setWings(response.data))
       .catch(() => setError('Failed to fetch wings'));
 
-    if (id) {
+    if (empId) {
       axios
-        .get(`http://localhost:8080/api/employees/${id}`)
+        .get(`http://localhost:8080/api/employees/${empId}`)
         .then((response) => {
           const employee = response.data;
           setFormData({
@@ -92,7 +92,7 @@ const EmployeeForm = () => {
         })
         .catch(() => setError('Failed to fetch employee data'));
     }
-  }, [id]);
+  }, [empId]);
 
   useEffect(() => {
     if (formData.wingId) {
@@ -374,15 +374,15 @@ const EmployeeForm = () => {
     }
 
     try {
-      const url = id ? `http://localhost:8080/api/employees/${id}` : 'http://localhost:8080/api/employees';
-      const method = id ? 'put' : 'post';
+      const url = empId ? `http://localhost:8080/api/employees/${empId}` : 'http://localhost:8080/api/employees';
+      const method = empId ? 'put' : 'post';
       const response = await axios({
         method,
         url,
         data: form,
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      alert(id ? 'Employee updated successfully' : response.data);
+      alert(empId ? 'Employee updated successfully' : response.data);
       setFormData({
         name: '',
         sonOf: '',
@@ -431,7 +431,7 @@ const EmployeeForm = () => {
 
   return (
     <div className="form-container">
-      <h2>{id ? 'Edit Employee' : 'Employee Registration Form'}</h2>
+      <h2>{empId ? 'Edit Employee' : 'Employee Registration Form'}</h2>
       {console.log('Current formData:', formData)}
       {error && <p className="error">{error}</p>}
       <div className="top-button">
@@ -495,7 +495,7 @@ const EmployeeForm = () => {
               type="date"
               id="doj"
               name="doj"
-              value={formData.doj}
+              value={formData.dob}
               onChange={handleChange}
             />
             {errors.doj && <p className="error-inline">{errors.doj}</p>}
@@ -709,7 +709,7 @@ const EmployeeForm = () => {
           </div>
         </div>
         <div className="button-group">
-          <button type="submit">{id ? 'Update' : 'Submit'}</button>
+          <button type="submit">{empId ? 'Update' : 'Submit'}</button>
         </div>
       </form>
 

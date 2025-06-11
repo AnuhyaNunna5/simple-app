@@ -9,7 +9,7 @@ import './EmployeeDetails.css';
 Modal.setAppElement('#root');
 
 const EmployeeDelete = () => {
-  const { id } = useParams();
+  const { empId } = useParams();
   const navigate = useNavigate();
   const [employee, setEmployee] = useState(null);
   const [remarks, setRemarks] = useState('');
@@ -20,10 +20,10 @@ const EmployeeDelete = () => {
 
   useEffect(() => {
     axios
-      .get(`http://localhost:8080/api/employees/${id}`)
+      .get(`http://localhost:8080/api/employees/${empId}`)
       .then((response) => setEmployee(response.data))
       .catch(() => setError('Failed to fetch employee details'));
-  }, [id]);
+  }, [empId]);
 
   const validateRemarks = (value) => {
     if (!value || value.trim().length === 0) {
@@ -52,7 +52,7 @@ const EmployeeDelete = () => {
     }
 
     try {
-      await axios.delete(`http://localhost:8080/api/employees/${id}`, {
+      await axios.delete(`http://localhost:8080/api/employees/${empId}`, {
         data: { remarks },
       });
       alert('Employee deleted successfully');

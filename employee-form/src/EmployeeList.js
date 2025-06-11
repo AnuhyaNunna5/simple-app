@@ -39,13 +39,13 @@ const EmployeeList = () => {
               <td>{employee.gender}</td>
               <td>{employee.doj}</td>
               <td>
-                <Link to={`/employees/${employee.id}`}>
+                <Link to={`/employees/${employee.empId}`}>
                   <button className="view-button">View Details</button>
                 </Link>
-                <Link to={`/employee-form/edit/${employee.id}`}>
+                <Link to={`/employee-form/edit/${employee.empId}`}>
                   <button className="edit-button">Edit</button>
                 </Link>
-                <Link to={`/employees/delete/${employee.id}`}>
+                <Link to={`/employees/delete/${employee.empId}`}>
                   <button className="delete-button">Delete</button>
                 </Link>
               </td>

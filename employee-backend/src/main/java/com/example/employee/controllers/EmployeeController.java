@@ -7,6 +7,7 @@ import com.example.employee.entity.Department;
 import com.example.employee.entity.WorkExperience;
 import com.example.employee.entity.LogEmployee;
 import com.example.employee.entity.LogEmployeeSkill;
+import com.example.employee.entity.LogEmployeeSkill.LogEmployeeSkillId;
 import com.example.employee.entity.LogWorkExperience;
 import com.example.employee.repositories.EmployeeRepository;
 import com.example.employee.repositories.SkillRepository;
@@ -60,6 +61,8 @@ public class EmployeeController {
             @RequestPart(value = "photo", required = false) MultipartFile photo) throws IOException {
         logger.info("Creating employee: {}", employeeDTO.getName());
         Employee employee = new Employee();
+        employee.setEmpId("EM" + employeeRepository.getNextEmpIdSequence());
+        employee.setSeqId(employeeRepository.getNextSeqIdSequence().intValue());
         employee.setName(employeeDTO.getName());
         employee.setSonOf(employeeDTO.getSonOf());
         employee.setDob(LocalDate.parse(employeeDTO.getDob()));
@@ -134,7 +137,7 @@ public class EmployeeController {
         List<Employee> employees = employeeRepository.findAll();
         List<EmployeeDTO> employeeDTOs = employees.stream().map(employee -> {
             EmployeeDTO dto = new EmployeeDTO();
-            dto.setId(employee.getId());
+            dto.setEmpId(employee.getEmpId());
             dto.setName(employee.getName());
             dto.setSonOf(employee.getSonOf());
             dto.setGender(employee.getGender());
@@ -143,13 +146,13 @@ public class EmployeeController {
         }).collect(Collectors.toList());
         return ResponseEntity.ok(employeeDTOs);
     }
-    
-    @GetMapping("/employees/{id}")
-    public ResponseEntity<EmployeeDTO> getEmployeeById(@PathVariable Long id) {
-        Employee employee = employeeRepository.findById(id)
+
+    @GetMapping("/employees/{empId}")
+    public ResponseEntity<EmployeeDTO> getEmployeeById(@PathVariable String empId) {
+        Employee employee = employeeRepository.findById(empId)
                 .orElseThrow(() -> new IllegalArgumentException("Employee not found"));
         EmployeeDTO dto = new EmployeeDTO();
-        dto.setId(employee.getId());
+        dto.setEmpId(employee.getEmpId());
         dto.setName(employee.getName());
         dto.setSonOf(employee.getSonOf());
         dto.setDob(employee.getDob().toString());
@@ -180,13 +183,13 @@ public class EmployeeController {
         return ResponseEntity.ok(dto);
     }
 
-    @PutMapping("/employees/{id}")
+    @PutMapping("/employees/{empId}")
     public ResponseEntity<String> updateEmployee(
-            @PathVariable Long id,
+            @PathVariable String empId,
             @RequestPart("employee") EmployeeDTO employeeDTO,
             @RequestPart(value = "photo", required = false) MultipartFile photo) throws IOException {
-        logger.info("Updating employee ID: {}, Work Experiences: {}", id, employeeDTO.getWorkExperiences());
-        Employee employee = employeeRepository.findById(id)
+        logger.info("Updating employee empId: {}, Work Experiences: {}", empId, employeeDTO.getWorkExperiences());
+        Employee employee = employeeRepository.findById(empId)
                 .orElseThrow(() -> new IllegalArgumentException("Employee not found"));
 
         // Update basic fields
@@ -195,8 +198,8 @@ public class EmployeeController {
         try {
             employee.setDob(LocalDate.parse(employeeDTO.getDob()));
             employee.setDoj(LocalDate.parse(employeeDTO.getDoj()));
-        } catch (Exception e) {
-            logger.error("Invalid date format in employeeDTO: {}", employeeDTO, e);
+        } catch (Exception ex) {
+            logger.error("Invalid date format in employeeDTO: {}", employeeDTO, ex);
             throw new IllegalArgumentException("Invalid date format in DOB or DOJ");
         }
         employee.setGender(employeeDTO.getGender());
@@ -246,8 +249,8 @@ public class EmployeeController {
                 try {
                     experience.setFromDate(expDTO.getFromDate() != null && !expDTO.getFromDate().isEmpty() ? LocalDate.parse(expDTO.getFromDate()) : null);
                     experience.setToDate(expDTO.getToDate() != null && !expDTO.getToDate().isEmpty() ? LocalDate.parse(expDTO.getToDate()) : null);
-                } catch (Exception e) {
-                    logger.error("Invalid date format in work experience: {}", expDTO, e);
+                } catch (Exception ex) {
+                    logger.error("Invalid date format in work experience: {}", expDTO, ex);
                     throw new IllegalArgumentException("Invalid date format in work experience");
                 }
                 experience.setExperienceYears(expDTO.getExperienceYears());
@@ -259,78 +262,97 @@ public class EmployeeController {
         // Save employee (cascade persists work experiences)
         try {
             employeeRepository.save(employee);
-        } catch (Exception e) {
-            logger.error("Failed to save employee: {}", employee, e);
-            throw new RuntimeException("Failed to save employee", e);
+        } catch (Exception ex) {
+            logger.error("Failed to save employee: {}", employee, ex);
+            throw new RuntimeException("Failed to save employee", ex);
         }
-        logger.info("Employee updated successfully: ID {}", id);
+        logger.info("Employee updated successfully: empId {}", empId);
         return ResponseEntity.ok("Employee updated successfully");
     }
 
-    @DeleteMapping("/employees/{id}")
+    @DeleteMapping("/employees/{empId}")
     @Transactional
-    public ResponseEntity<String> deleteEmployee(@PathVariable Long id, @RequestBody DeleteRequestDTO deleteRequest) {
-        logger.info("Deleting employee ID: {} with remarks: {}", id, deleteRequest.getRemarks());
+    public ResponseEntity<String> deleteEmployee(@PathVariable String empId, @RequestBody DeleteRequestDTO deleteRequest) {
+        logger.info("Deleting employee empId: {} with remarks: {}", empId, deleteRequest.getRemarks());
 
-        // Validate remarks
-        String remarks = deleteRequest.getRemarks();
-        if (remarks == null || remarks.trim().isEmpty()) {
-            throw new IllegalArgumentException("Remarks are required");
+        try {
+            // Validate remarks
+            String remarks = deleteRequest.getRemarks();
+            if (remarks == null || remarks.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Remarks are required");
+            }
+            if (remarks.length() < 10 || remarks.length() > 500) {
+                return ResponseEntity.badRequest().body("Remarks must be between 10 and 500 characters");
+            }
+
+            // Fetch employee
+            Employee employee = employeeRepository.findById(empId)
+                    .orElseThrow(() -> new IllegalArgumentException("Employee not found with empId: " + empId));
+
+            // Log to log_employees
+            LogEmployee logEmployee = new LogEmployee();
+            logEmployee.setEmpId(employee.getEmpId());
+            logEmployee.setName(employee.getName());
+            logEmployee.setSonOf(employee.getSonOf());
+            logEmployee.setDob(employee.getDob());
+            logEmployee.setAge(employee.getAge());
+            logEmployee.setDoj(employee.getDoj());
+            logEmployee.setGender(employee.getGender());
+            logEmployee.setAddress(employee.getAddress());
+            logEmployee.setWingId(employee.getWing().getId());
+            logEmployee.setDepartmentId(employee.getDepartment() != null ? employee.getDepartment().getId() : null);
+            logEmployee.setPhoto(employee.getPhoto());
+            logEmployee.setRemarks(remarks);
+            logEmployee.setLogTime(LocalDateTime.now());
+            logEmployeeRepository.save(logEmployee);
+
+            // Log to log_employee_skills
+            for (Skill skill : employee.getSkills()) {
+                LogEmployeeSkill logSkill = new LogEmployeeSkill();
+                LogEmployeeSkillId id = new LogEmployeeSkillId();
+                id.setEmpId(employee.getEmpId());
+                id.setSkillId(skill.getId());
+                logSkill.setId(id);
+                logEmployeeSkillRepository.save(logSkill);
+            }
+
+            // Log to log_work_experience
+            for (WorkExperience exp : employee.getWorkExperiences()) {
+                LogWorkExperience logExp = new LogWorkExperience();
+                logExp.setEmpId(employee.getEmpId());
+                logExp.setLocation(exp.getLocation());
+                logExp.setCompanyName(exp.getCompanyName());
+                logExp.setJobRole(exp.getJobRole());
+                logExp.setFromDate(exp.getFromDate());
+                logExp.setToDate(exp.getToDate());
+                logExp.setExperienceYears(exp.getExperienceYears());
+                logWorkExperienceRepository.save(logExp);
+            }
+
+            // Delete from employee_skills
+            employee.getSkills().clear();
+            employeeRepository.save(employee);
+
+            // Delete from work_experience
+            workExperienceRepository.deleteByEmployeeEmpId(empId);
+
+            // Delete from employees
+            employeeRepository.delete(employee);
+
+            logger.info("Employee empId: {} deleted successfully", empId);
+            return ResponseEntity.ok("Employee deleted successfully");
+        } catch (IllegalArgumentException ex) {
+            logger.error("Failed to delete employee empId: {} - {}", empId, ex.getMessage());
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        } catch (Exception ex) {
+            logger.error("Error deleting employee empId: {} - {}", empId, ex.getMessage(), ex);
+            return ResponseEntity.status(500).body("Internal server error: " + ex.getMessage());
         }
-        if (remarks.length() < 10 || remarks.length() > 500) {
-            throw new IllegalArgumentException("Remarks must be between 10 and 500 characters");
-        }
-
-        // Fetch employee
-        Employee employee = employeeRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Employee not found"));
-
-        // Log to log_employees
-        LogEmployee logEmployee = new LogEmployee();
-        logEmployee.setEmployeeId(employee.getId());
-        logEmployee.setName(employee.getName());
-        logEmployee.setSonOf(employee.getSonOf());
-        logEmployee.setDob(employee.getDob());
-        logEmployee.setAge(employee.getAge());
-        logEmployee.setDoj(employee.getDoj());
-        logEmployee.setGender(employee.getGender());
-        logEmployee.setAddress(employee.getAddress());
-        logEmployee.setWingId(employee.getWing().getId());
-        logEmployee.setDepartmentId(employee.getDepartment() != null ? employee.getDepartment().getId() : null);
-        logEmployee.setPhoto(employee.getPhoto());
-        logEmployee.setRemarks(remarks);
-        logEmployee.setLogTime(LocalDateTime.now());
-        logEmployeeRepository.save(logEmployee);
-
-        // Log to log_employee_skills
-        for (Skill skill : employee.getSkills()) {
-            LogEmployeeSkill logSkill = new LogEmployeeSkill();
-            logSkill.setEmployeeId(employee.getId());
-            logSkill.setSkillId(skill.getId());
-            logEmployeeSkillRepository.save(logSkill);
-        }
-
-        // Log to log_work_experience
-        for (WorkExperience exp : employee.getWorkExperiences()) {
-            LogWorkExperience logExp = new LogWorkExperience();
-            logExp.setEmployeeId(employee.getId());
-            logExp.setLocation(exp.getLocation());
-            logExp.setCompanyName(exp.getCompanyName());
-            logExp.setJobRole(exp.getJobRole());
-            logExp.setFromDate(exp.getFromDate());
-            logExp.setToDate(exp.getToDate());
-            logExp.setExperienceYears(exp.getExperienceYears());
-            logWorkExperienceRepository.save(logExp);
-        }
-
-        // Delete employee (cascade removes work experiences and skills)
-        employeeRepository.delete(employee);
-        logger.info("Employee ID: {} deleted successfully", id);
-        return ResponseEntity.ok("Employee deleted successfully");
     }
 }
 
 class EmployeeDTO {
+    private String empId;
     private String name;
     private String sonOf;
     private String dob;
@@ -342,13 +364,14 @@ class EmployeeDTO {
     private List<Long> skillIds;
     private List<WorkExperienceDTO> workExperiences;
     private Integer age;
-    private Long id;
     private String wingName;
     private String departmentName;
     private String skillNames;
     private String photoBase64;
 
     // Getters and setters
+    public String getEmpId() { return empId; }
+    public void setEmpId(String empId) { this.empId = empId; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getSonOf() { return sonOf; }
@@ -371,8 +394,6 @@ class EmployeeDTO {
     public void setWorkExperiences(List<WorkExperienceDTO> workExperiences) { this.workExperiences = workExperiences; }
     public Integer getAge() { return age; }
     public void setAge(Integer age) { this.age = age; }
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
     public String getWingName() { return wingName; }
     public void setWingName(String wingName) { this.wingName = wingName; }
     public String getDepartmentName() { return departmentName; }

@@ -8,8 +8,12 @@ import java.util.List;
 @Table(name = "employees")
 public class Employee {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(name = "emp_id")
+    private String empId;
+
+    @Column(name = "seq_id", unique = true)
+    private Integer seqId;
+
     private String name;
     private String sonOf;
     private LocalDate dob;
@@ -17,7 +21,7 @@ public class Employee {
     private String gender;
     private String address;
     private byte[] photo;
-    
+
     @Column(name = "age", nullable = false, columnDefinition = "INTEGER DEFAULT 0")
     private Integer age;
 
@@ -32,7 +36,7 @@ public class Employee {
     @ManyToMany
     @JoinTable(
         name = "employee_skills",
-        joinColumns = @JoinColumn(name = "employee_id"),
+        joinColumns = @JoinColumn(name = "emp_id"),
         inverseJoinColumns = @JoinColumn(name = "skill_id")
     )
     private List<Skill> skills;
@@ -41,8 +45,10 @@ public class Employee {
     private List<WorkExperience> workExperiences;
 
     // Getters and Setters
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public String getEmpId() { return empId; }
+    public void setEmpId(String empId) { this.empId = empId; }
+    public Integer getSeqId() { return seqId; }
+    public void setSeqId(Integer seqId) { this.seqId = seqId; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getSonOf() { return sonOf; }

@@ -11,8 +11,8 @@ public class LogWorkExperience {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "employee_id", nullable = false)
-    private Long employeeId;
+    @Column(name = "emp_id", nullable = false)
+    private String empId;
 
     @Column(length = 100)
     private String location;
@@ -35,8 +35,8 @@ public class LogWorkExperience {
     // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
-    public Long getEmployeeId() { return employeeId; }
-    public void setEmployeeId(Long employeeId) { this.employeeId = employeeId; }
+    public String getEmpId() { return empId; }
+    public void setEmpId(String empId) { this.empId = empId; }
     public String getLocation() { return location; }
     public void setLocation(String location) { this.location = location; }
     public String getCompanyName() { return companyName; }
